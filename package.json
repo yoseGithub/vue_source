@@ -1,0 +1,16 @@
+{
+    "name": "vue-source",
+    "version": "1.0.0",
+    "description": "vue源码学习",
+    "author": "yose",
+    "scripts": {
+      "dev": "rollup -c -w"
+    },
+    "devDependencies": {
+        "rollup": "^2.38.4",
+        "@babel/core": "^7.12.13",
+        "@babel/preset-env": "^7.12.13",
+        "@rollup/plugin-babel": "^5.2.3",
+        "rollup-plugin-serve": "^1.1.0"
+    }
+}
