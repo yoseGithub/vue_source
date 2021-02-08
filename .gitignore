@@ -2,7 +2,8 @@
 node_modules/
 npm-debug.log*
 **/*.log
-*.md
+note/
+*.xmind
 
 # Editor directories and files
 .idea

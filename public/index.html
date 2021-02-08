@@ -6,18 +6,29 @@
     <title>Document</title>
 </head>
 <body>
+    <div id="app" class="wrap" style="background-color: pink">
+        <div class="container">
+            <span style="color: plum">{{name}}</span>
+        </div>
+    </div>
+
     <script src="/dist/vue.js"></script>
     <script>
         const vm = new Vue({ // options api
+            el: '#app',
             data () {
                 return {
                     name: 'yose',
-                    age: 18
+                    age: 18,
+                    obj: {
+                        a: 10,
+                        b: 'A'
+                    }
                 }
             }
         })
 
-        console.log(vm)
+        // console.log(vm)
     </script>
 </body>
 </html>
