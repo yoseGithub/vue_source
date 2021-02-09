@@ -9,6 +9,7 @@
     <div id="app" class="wrap" style="background-color: pink">
         <div class="container">
             <span style="color: plum">{{name}}</span>
+            <span style="color: powderblue">{{age}}</span>
         </div>
     </div>
 
@@ -19,13 +20,19 @@
             data () {
                 return {
                     name: 'yose',
-                    age: 18,
-                    obj: {
-                        a: 10,
-                        b: 'A'
-                    }
+                    age: 18
                 }
             }
+        })
+
+        vm.$nextTick(() => {
+            vm.name = 'AA'
+        })
+        vm.$nextTick(() => {
+            vm.name = 'BB'
+        })
+        vm.$nextTick(() => {
+            vm.name = 'cc'
         })
     </script>
 </body>

@@ -1,5 +1,6 @@
 // watcher 记住dep是为了计算属性和让用户调用
 import { popTarget, pushTarget } from "./dep"
+import { queueWatcher } from "./schedular"
 
 let id = 0
 
@@ -30,8 +31,13 @@ class Watcher {
             dep.addSub(this)
         }
     }
-    update () {
+    // 真正触发更新
+    run () {
+        console.log('触发视图更新')
         this.get()
+    }
+    update () { // 多次更改，合并成一次（防抖）
+        queueWatcher(this)
     }
 }
 

@@ -1,6 +1,7 @@
 import { initState } from './state'
 import { compileToFunctions } from './compiler/index.js'
 import { mountComponent } from './lifecycle.js'
+import { nextTick } from '@/util'
 
 // 通过原型混合的方式，往vue的原型添方法
 export function initMixin (Vue) {
@@ -17,6 +18,8 @@ export function initMixin (Vue) {
             vm.$mount(vm.$options.el)
         }
     }
+
+    Vue.prototype.$nextTick = nextTick
 
     Vue.prototype.$mount = function (el) {
         el = document.querySelector(el)

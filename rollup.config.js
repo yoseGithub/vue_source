@@ -1,5 +1,6 @@
 import serve from 'rollup-plugin-serve'
 import babel from '@rollup/plugin-babel'
+import alias from 'rollup-plugin-alias';
 
 // 用于打包的配置
 export default {
@@ -10,7 +11,16 @@ export default {
         format: 'umd', // window.Vue
         sourcemap: true // es6->es5
     },
+    alias: {
+        '@': './src/*'
+    },
     plugins: [
+        alias({
+            resolve: ['.jsx', '.js'],
+            entries:[
+              {find: '@', replacement: './src'}
+            ]
+        }),
         babel({
             exclude: 'node_modules/**' // 该目录不需要用babel转换
         }),
