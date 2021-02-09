@@ -42,6 +42,21 @@
     return Constructor;
   }
 
+  function _defineProperty(obj, key, value) {
+    if (key in obj) {
+      Object.defineProperty(obj, key, {
+        value: value,
+        enumerable: true,
+        configurable: true,
+        writable: true
+      });
+    } else {
+      obj[key] = value;
+    }
+
+    return obj;
+  }
+
   function _slicedToArray(arr, i) {
     return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _unsupportedIterableToArray(arr, i) || _nonIterableRest();
   }
@@ -140,6 +155,50 @@
     };
   });
 
+  // dep存在的意义：watcher是为了监听，取值的时候会触发记录
+  var id = 0;
+
+  var Dep = /*#__PURE__*/function () {
+    function Dep() {
+      _classCallCheck(this, Dep);
+
+      this.id = id++;
+      this.subs = []; // 属性要记住watcher
+    } // 如果有报错可自行安装babel插件（@babel/plugin-proposal-class-properties），又或者在外部写成 Dep.target = null
+
+
+    _createClass(Dep, [{
+      key: "depend",
+      value: function depend() {
+        // 让watcher记住dep
+        Dep.target.addDep(this); // this为渲染watcher
+      }
+    }, {
+      key: "addSub",
+      value: function addSub(watcher) {
+        this.subs.push(watcher);
+      }
+    }, {
+      key: "notify",
+      value: function notify() {
+        this.subs.forEach(function (watcher) {
+          return watcher.update;
+        });
+      }
+    }]);
+
+    return Dep;
+  }();
+
+  _defineProperty(Dep, "target", null);
+
+  function pushTarget(watcher) {
+    Dep.target = watcher;
+  }
+  function popTarget(watcher) {
+    Dep.target = null;
+  }
+
   var Observer = /*#__PURE__*/function () {
     function Observer(value) {
       _classCallCheck(this, Observer);
@@ -193,8 +252,15 @@
     // value可能也是一个对象
     observe(value); // 对结果递归拦截
 
+    var dep = new Dep(); // 每次都会给属性创建一个dep
+
     Object.defineProperty(data, key, {
+      // 需要给每个属性都添加一个Dep
       get: function get() {
+        if (Dep.target) {
+          dep.depend(); // 让这个属性自己的dep记住这个watcher
+        }
+
         return value;
       },
       set: function set(newValue) {
@@ -203,6 +269,7 @@
         observe(newValue); // 如果用户设置的是一个对象，就继续将用户设置的对象变成响应式的
 
         value = newValue;
+        dep.notify(); // 通知 dep 中记录的 wathcer 让它去执行
       }
     });
   }
@@ -501,19 +568,57 @@
     return fn;
   }
 
-  var id = 0;
+  var id$1 = 0;
 
-  var Watcher = function Watcher(vm, fn, cb, options) {
-    _classCallCheck(this, Watcher);
+  var Watcher = /*#__PURE__*/function () {
+    function Watcher(vm, exprOrFn, cb, options) {
+      _classCallCheck(this, Watcher);
 
-    this.vm = vm;
-    this.fn = fn;
-    this.cb = cb;
-    this.id = id++; // 不同组件id都不一样
+      this.vm = vm;
+      this.cb = cb;
+      this.id = id$1++; // 不同组件id都不一样
 
-    this.options = options;
-    this.fn(); // 调用传入的函数
-  };
+      this.options = options;
+      this.getter = exprOrFn; // 调用传入的函数
+
+      this.deps = []; // watcher 里也要记住dep
+
+      this.depsId = new Set();
+      this.get();
+    } // 这个方法中会对属性进行取值操作
+
+
+    _createClass(Watcher, [{
+      key: "get",
+      value: function get() {
+        pushTarget(this); // Dep.target = watcher
+
+        this.getter(); // 取值
+
+        popTarget();
+      } // 当属性取值时，需要记住这个watcher，稍后数据变化了，去执行自己记住的watcher即可
+
+    }, {
+      key: "addDep",
+      value: function addDep(dep) {
+        var id = dep.id;
+
+        if (!this.depsId.has(id)) {
+          // dep是非重复的
+          this.depsId.add(id);
+          this.deps.push(dep);
+          dep.addSub(this);
+        }
+      }
+    }, {
+      key: "update",
+      value: function update() {
+        this.get();
+      }
+    }]);
+
+    return Watcher;
+  }();
 
   // 将虚拟节点转换成真实节点
   function patch(oldVnode, newVnode) {
@@ -524,7 +629,8 @@
       // 初次渲染
       var oldElm = oldVnode; // id="app"
 
-      var parentElm = oldElm.parentNode;
+      var parentElm = oldElm.parentNode; // body
+
       var el = createdElm(newVnode); // 根据虚拟节点创建真实节点
       // 将创建的节点插入到原有节点的下一个，因为不比vue template，index.html除了入口还可能有其他元素
 
@@ -581,8 +687,9 @@
     // 视图更新方法，用于渲染真实DOM
     Vue.prototype._update = function (vnode) {
       var vm = this; // 首次渲染，需要用虚拟节点，来更新真实的dom元素
+      // 第一次渲染完毕后 拿到新的节点，下次再次渲染时替换上次渲染的结果
 
-      vm.$el = patch(vm.$options.el, vnode);
+      vm.$options.el = patch(vm.$options.el, vnode);
     };
   }
   function mountComponent(vm, el) {

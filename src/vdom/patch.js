@@ -6,7 +6,7 @@ export function patch(oldVnode, newVnode) {
     if (isRealElement) {
         // 初次渲染
         const oldElm = oldVnode // id="app"
-        const parentElm = oldElm.parentNode
+        const parentElm = oldElm.parentNode // body
         const el = createdElm(newVnode) // 根据虚拟节点创建真实节点
         // 将创建的节点插入到原有节点的下一个，因为不比vue template，index.html除了入口还可能有其他元素
         parentElm.insertBefore(el, oldElm.nextSibling)

@@ -1,4 +1,5 @@
 import { arrayMethods } from './array.js'
+import Dep from './dep.js'
 
 class Observer {
     constructor (value) { // value 最初为 data 传入的每一项数据
@@ -41,8 +42,12 @@ export function defineReactive (data, key, value) { // vue2中数据嵌套不要
     // value可能也是一个对象
     observe(value) // 对结果递归拦截
 
-    Object.defineProperty(data, key, {
+    let dep = new Dep() // 每次都会给属性创建一个dep
+    Object.defineProperty(data, key, { // 需要给每个属性都添加一个Dep
         get () {
+            if (Dep.target) {
+                dep.depend() // 让这个属性自己的dep记住这个watcher
+            }
             return value
         },
         set (newValue) {
@@ -50,6 +55,8 @@ export function defineReactive (data, key, value) { // vue2中数据嵌套不要
             if (newValue === value) return
             observe(newValue) // 如果用户设置的是一个对象，就继续将用户设置的对象变成响应式的
             value = newValue
+
+            dep.notify() // 通知 dep 中记录的 wathcer 让它去执行
         }
     })
 }
