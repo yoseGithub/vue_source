@@ -23,9 +23,8 @@ methods.forEach(method => {
         }
 
         // 如果有值则需要使用 observeArray 方法，通过 Observer 中对每一项进行监控时，如果为数组则会在该数组属性上挂上数组遍历方法
-        if (inserted) {
-            ob.observeArray(inserted)
-        }
+        if (inserted) ob.observeArray(inserted)
+        ob.dep.notify()
 
         // 调用数组原有方法执行
         const result = oldArrayMethods[method].call(this, ...args)

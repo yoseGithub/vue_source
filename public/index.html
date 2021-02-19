@@ -7,10 +7,9 @@
 </head>
 <body>
     <div id="app" class="wrap" style="background-color: pink">
-        <div class="container">
-            <span style="color: plum">{{name}}</span>
-            <span style="color: powderblue">{{age}}</span>
-        </div>
+        <div>{{name}}</div>
+        <div>{{age}}</div>
+        <div>{{arr}}</div>
     </div>
 
     <script src="/dist/vue.js"></script>
@@ -20,20 +19,15 @@
             data () {
                 return {
                     name: 'yose',
-                    age: 18
+                    age: 18,
+                    arr: []
                 }
             }
         })
 
-        vm.$nextTick(() => {
-            vm.name = 'AA'
-        })
-        vm.$nextTick(() => {
-            vm.name = 'BB'
-        })
-        vm.$nextTick(() => {
-            vm.name = 'cc'
-        })
+        // setTimeout(() => {
+        //     vm.arr[0].push(5)
+        // }, 1000)
     </script>
 </body>
 </html>

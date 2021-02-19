@@ -24,7 +24,7 @@ export function pushTarget (watcher) {
     Dep.target = watcher
 }
 
-export function popTarget (watcher) {
+export function popTarget () {
     Dep.target = null
 }
 
