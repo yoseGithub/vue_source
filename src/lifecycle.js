@@ -8,7 +8,15 @@ export function lifecycleMixin (Vue) {
 
         // 首次渲染，需要用虚拟节点，来更新真实的dom元素
         // 第一次渲染完毕后 拿到新的节点，下次再次渲染时替换上次渲染的结果
-        vm.$options.el = patch(vm.$options.el, vnode)
+        vm.$el = patch(vm.$el, vnode)
+    }
+}
+
+// 调用合并的生命周期，依次执行
+export function callHook (vm, hook) { // 发布模式
+    const handlers = vm.$options[hook]
+    if (handlers) {
+        handlers.forEach(handlers => handlers.call(vm)) // 这也就是为什么vue的什么周期不能用箭头函数，call将无效，this指向了window而不是vm
     }
 }
 

@@ -14,6 +14,26 @@
 
     <script src="/dist/vue.js"></script>
     <script>
+        Vue.mixin({
+            a: 1,
+            beforeCreate () {
+                console.log('混入beforeCreate')
+            },
+            created () {
+                console.log('混入created')
+            }
+        })
+
+        Vue.mixin({
+            b: 2,
+            beforeCreate () {
+                console.log('混入beforeCreate')
+            },
+            created () {
+                console.log('混入created')
+            }
+        })
+
         const vm = new Vue({ // options api
             el: '#app',
             data () {
@@ -22,12 +42,14 @@
                     age: 18,
                     arr: []
                 }
+            },
+            beforeCreate () {
+                console.log('before-create')
+            },
+            created () {
+                console.log('created')
             }
         })
-
-        // setTimeout(() => {
-        //     vm.arr[0].push(5)
-        // }, 1000)
     </script>
 </body>
 </html>

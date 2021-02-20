@@ -1,17 +1,20 @@
 import { initState } from './state'
 import { compileToFunctions } from './compiler/index.js'
-import { mountComponent } from './lifecycle.js'
-import { nextTick } from '@/util'
+import { mountComponent, callHook } from './lifecycle.js'
+import { mergeOptions, nextTick } from '@/util'
 
 // 通过原型混合的方式，往vue的原型添方法
 export function initMixin (Vue) {
-    Vue.prototype._init = function (options) {
+    Vue.prototype._init = function (options) { // options是用户传入的对象
         const vm = this
         // 实例上有个属性 $options ，表示的是用户传入的所有属性
-        vm.$options = options
+        // vm.$options = options
+        vm.$options = mergeOptions(vm.constructor.options, options)
 
+        callHook(this, 'beforeCreate')
         // 初始化状态
         initState(vm)
+        callHook(this, 'created')
 
         // 数据可以挂载到页面上
         if (vm.$options.el) {
@@ -25,7 +28,7 @@ export function initMixin (Vue) {
         el = document.querySelector(el)
         const vm = this
         const options = vm.$options
-        vm.$options.el = el
+        vm.$el = el
 
         // 如果有render 就直接使用 render
         // 没有render 看有没有template属性
