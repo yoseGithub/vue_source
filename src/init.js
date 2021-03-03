@@ -8,7 +8,6 @@ export function initMixin (Vue) {
     Vue.prototype._init = function (options) { // options是用户传入的对象
         const vm = this
         // 实例上有个属性 $options ，表示的是用户传入的所有属性
-        // vm.$options = options
         vm.$options = mergeOptions(vm.constructor.options, options)
 
         callHook(this, 'beforeCreate')
@@ -25,7 +24,7 @@ export function initMixin (Vue) {
     Vue.prototype.$nextTick = nextTick
 
     Vue.prototype.$mount = function (el) {
-        el = document.querySelector(el)
+        el = el && document.querySelector(el) // 自定义组件没有el，但需要挂载
         const vm = this
         const options = vm.$options
         vm.$el = el
@@ -43,6 +42,6 @@ export function initMixin (Vue) {
             options.render = render // 通过这个步骤，统一为render
         }
 
-        mountComponent(vm, el) // 组件挂载
+        mountComponent(vm) // 组件挂载
     }
 }

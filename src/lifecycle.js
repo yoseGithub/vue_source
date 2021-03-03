@@ -8,7 +8,7 @@ export function lifecycleMixin (Vue) {
 
         // 首次渲染，需要用虚拟节点，来更新真实的dom元素
         // 第一次渲染完毕后 拿到新的节点，下次再次渲染时替换上次渲染的结果
-        vm.$el = patch(vm.$el, vnode)
+        vm.$el = patch(vm.$el, vnode) // 组件调用patch方法后会产生$el属性
     }
 }
 
@@ -20,7 +20,7 @@ export function callHook (vm, hook) { // 发布模式
     }
 }
 
-export function mountComponent (vm, el) {
+export function mountComponent (vm) {
     let updateComponent = () => {
         vm._update(vm._render()) // vm._render()返回虚拟节点，update返回真实节点
     }

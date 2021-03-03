@@ -7,48 +7,37 @@
 </head>
 <body>
     <div id="app" class="wrap" style="background-color: pink">
-        <div>{{name}}</div>
-        <div>{{age}}</div>
-        <div>{{arr}}</div>
+        <my-button></my-button>
+        <my-button></my-button>
+        <my-button></my-button>
     </div>
 
     <script src="/dist/vue.js"></script>
     <script>
-        Vue.mixin({
-            a: 1,
-            beforeCreate () {
-                console.log('混入beforeCreate')
-            },
-            created () {
-                console.log('混入created')
-            }
-        })
-
-        Vue.mixin({
-            b: 2,
-            beforeCreate () {
-                console.log('混入beforeCreate')
-            },
-            created () {
-                console.log('混入created')
-            }
+        Vue.component('my-button', {
+            template: '<button>按钮</button>'
         })
 
         const vm = new Vue({ // options api
             el: '#app',
-            data () {
-                return {
-                    name: 'yose',
-                    age: 18,
-                    arr: []
+            components: {
+                'my-button': {
+                    template: '<button>内部按钮</button>'
                 }
             },
-            beforeCreate () {
-                console.log('before-create')
-            },
-            created () {
-                console.log('created')
-            }
+            // data () {
+            //     return {
+            //         name: 'yose',
+            //         age: 18,
+            //         arr: []
+            //     }
+            // },
+            // beforeCreate () {
+            //     console.log('before-create')
+            // },
+            // created () {
+            //     console.log('created')
+            // }
         })
     </script>
 </body>

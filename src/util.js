@@ -44,8 +44,19 @@ LIFECYCLE_HOOKS.forEach(hook => {
     strats[hook] = mergeHook
 })
 
+// 组件合并策略
+strats.components = function (parentVal, childVal) {
+    const res = Object.create(parentVal)
+    if (childVal) {
+        for (let key in childVal) {
+            res[key] = childVal[key]
+        }
+    }
+    return res
+}
 
 // 钩子合并策略，数组形式
+// 由于调用时最开始传入的options为{}，所以在策略中要么没有，如果有则第一次parentVal为undefined，childVal有值
 function mergeHook (parentVal, childVal) {
     if (childVal) {
         if (parentVal) {
@@ -97,6 +108,18 @@ export function mergeOptions (parent, child) {
         }
     }
 
-    console.log(options)
     return options
 }
+
+function makeUp (str) {
+    const map = {}
+
+    str.split(',').forEach(tagName => {
+        map[tagName] = true
+    })
+
+    return tag => map[tag] || false
+}
+
+// 标签太多，随便写几个，源码里太多了。高阶函数，比起直接使用数组的include判断，用字典空间复杂度为O(1)
+export const isReservedTag = makeUp('a,p,div,ul,li,span,input,button')

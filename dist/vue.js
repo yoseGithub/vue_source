@@ -660,7 +660,21 @@
   var strats = {};
   LIFECYCLE_HOOKS.forEach(function (hook) {
     strats[hook] = mergeHook;
-  }); // 钩子合并策略，数组形式
+  }); // 组件合并策略
+
+  strats.components = function (parentVal, childVal) {
+    var res = Object.create(parentVal);
+
+    if (childVal) {
+      for (var key in childVal) {
+        res[key] = childVal[key];
+      }
+    }
+
+    return res;
+  }; // 钩子合并策略，数组形式
+  // 由于调用时最开始传入的options为{}，所以在策略中要么没有，如果有则第一次parentVal为undefined，childVal有值
+
 
   function mergeHook(parentVal, childVal) {
     if (childVal) {
@@ -713,9 +727,21 @@
       }
     }
 
-    console.log(options);
     return options;
   }
+
+  function makeUp(str) {
+    var map = {};
+    str.split(',').forEach(function (tagName) {
+      map[tagName] = true;
+    });
+    return function (tag) {
+      return map[tag] || false;
+    };
+  } // 标签太多，随便写几个，源码里太多了。高阶函数，比起直接使用数组的include判断，用字典空间复杂度为O(1)
+
+
+  var isReservedTag = makeUp('a,p,div,ul,li,span,input,button');
 
   // 调度文件
 
@@ -813,8 +839,13 @@
   }();
 
   // 将虚拟节点转换成真实节点
-  function patch(oldVnode, newVnode) {
-    // oldVnode 第一次是一个真实的元素，也就是#app
+  function patch(oldVnode, vnode) {
+    // 组件没有oldVnode，直接创建元素
+    if (!oldVnode) {
+      return createdElm(vnode); // 根据虚拟节点创建元素
+    } // oldVnode 第一次是一个真实的元素，也就是#app
+
+
     var isRealElement = oldVnode.nodeType;
 
     if (isRealElement) {
@@ -823,13 +854,29 @@
 
       var parentElm = oldElm.parentNode; // body
 
-      var el = createdElm(newVnode); // 根据虚拟节点创建真实节点
+      var el = createdElm(vnode); // 根据虚拟节点创建真实节点
       // 将创建的节点插入到原有节点的下一个，因为不比vue template，index.html除了入口还可能有其他元素
 
       parentElm.insertBefore(el, oldElm.nextSibling);
       parentElm.removeChild(oldElm);
       return el; // vm.$el
     }
+  } // 创建节点真实Dom
+
+  function createComponent(vnode) {
+    console.log(vnode);
+    var i = vnode.data; // 先将vnode.data赋值给i，然后将i.hook赋值给i，如果i存在再将i.init赋值给i，疯狂改变i的类型，虽然js中都属于Object，但真的好吗…
+
+    if ((i = i.hook) && (i = i.init)) {
+      i(vnode); // 调用组件的初始化方法
+    }
+
+    if (vnode.componentInstance) {
+      // 如果虚拟节点上又组件的实例说明当前这个vnode是组件
+      return true;
+    }
+
+    return false;
   }
 
   function createdElm(vnode) {
@@ -842,7 +889,12 @@
         text = vnode.text;
 
     if (typeof tag === 'string') {
-      // 可能是组件
+      // 可能是组件，如果是组件，就直接创造出组件的真实节点
+      if (createComponent(vnode)) {
+        // 如果返回true，说明这个虚拟节点是组件
+        return vnode.componentInstance.$el;
+      }
+
       vnode.el = document.createElement(tag); // 用vue的指令时，可以通过vnode拿到真实dom
 
       updateProperties(vnode);
@@ -881,7 +933,7 @@
       var vm = this; // 首次渲染，需要用虚拟节点，来更新真实的dom元素
       // 第一次渲染完毕后 拿到新的节点，下次再次渲染时替换上次渲染的结果
 
-      vm.$el = patch(vm.$el, vnode);
+      vm.$el = patch(vm.$el, vnode); // 组件调用patch方法后会产生$el属性
     };
   } // 调用合并的生命周期，依次执行
 
@@ -895,7 +947,7 @@
       }); // 这也就是为什么vue的什么周期不能用箭头函数，call将无效，this指向了window而不是vm
     }
   }
-  function mountComponent(vm, el) {
+  function mountComponent(vm) {
     var updateComponent = function updateComponent() {
       vm._update(vm._render()); // vm._render()返回虚拟节点，update返回真实节点
 
@@ -909,7 +961,6 @@
     Vue.prototype._init = function (options) {
       // options是用户传入的对象
       var vm = this; // 实例上有个属性 $options ，表示的是用户传入的所有属性
-      // vm.$options = options
 
       vm.$options = mergeOptions(vm.constructor.options, options);
       callHook(this, 'beforeCreate'); // 初始化状态
@@ -925,7 +976,8 @@
     Vue.prototype.$nextTick = nextTick;
 
     Vue.prototype.$mount = function (el) {
-      el = document.querySelector(el);
+      el = el && document.querySelector(el); // 自定义组件没有el，但需要挂载
+
       var vm = this;
       var options = vm.$options;
       vm.$el = el; // 如果有render 就直接使用 render
@@ -948,7 +1000,6 @@
     };
   }
 
-  // 创建 Dom虚拟节点
   function createdElement(vm, tag) {
     var data = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
 
@@ -956,21 +1007,52 @@
       children[_key - 3] = arguments[_key];
     }
 
-    return vnode(vm, tag, data, data.key, children, undefined);
+    // 需要对标签名做过滤，因为有可能标签名是一个自定义组件
+    if (isReservedTag(tag)) {
+      return vnode(vm, tag, data, data.key, children, undefined);
+    } else {
+      // 自定义组件
+      var Ctor = vm.$options.components[tag]; // Ctor是个对象或者函数
+      // 核心：vue.extend，继承父组件，通过原型链向上查找，封装成函数
+
+      return createComponent$1(vm, tag, data, data.key, children, Ctor);
+    }
+  }
+
+  function createComponent$1(vm, tag, data, key, children, Ctor) {
+    if (isObject(Ctor)) {
+      // 对象，是个子组件，也封装成函数，统一
+      Ctor = vm.$options._base.extend(Ctor);
+    } // 给组件增加生命周期（源码中是抽离出去的，所以需要将vnode传进入，而不是直接使用Ctor）
+
+
+    data.hook = {
+      init: function init(vnode) {
+        // 调用子组件的构造函数，实例化组件
+        var child = vnode.componentInstance = new vnode.componentOptions.Ctor({});
+        child.$mount(); // 手动挂载 vnode.componentInstance.$el = 真实的元素
+      }
+    }; // 组件的虚拟节点拥有 hook 和当前组件的 componentOptions ，Ctor中存放了组件的构造函数
+
+    return vnode(vm, "vue-component-".concat(Ctor.cid, "-").concat(tag), data, key, undefined, undefined, {
+      Ctor: Ctor
+    });
   } // 创建文本虚拟节点
+
 
   function createTextVnode(vm, text) {
     return vnode(vm, undefined, undefined, undefined, undefined, text);
   }
 
-  function vnode(vm, tag, data, key, children, text) {
+  function vnode(vm, tag, data, key, children, text, componentOptions) {
     return {
       vm: vm,
       tag: tag,
       children: children,
       data: data,
       key: key,
-      text: text
+      text: text,
+      componentOptions: componentOptions
     };
   }
 
@@ -1015,6 +1097,42 @@
     Vue.mixin = function (mixin) {
       this.options = mergeOptions(this.options, mixin);
       return this;
+    }; // 调用生成组件
+
+
+    Vue.options._base = Vue; // 永远指向Vue的构造函数
+
+    Vue.options.components = {}; // 用来存放组件的定义
+
+    Vue.component = function (id, definition) {
+      definition.name = definition.name || id; // 组件名，如果定义中有name属性则使用name，否则以组件名命名
+
+      definition = this.options._base.extend(definition); // 通过对象产生一个构造函数
+
+      this.options.components[id] = definition;
+    };
+
+    var cid = 0; // 子组件初始化时，会 new VueComponent(options)，产生一个子类Sub
+
+    Vue.extend = function (options) {
+      var Super = this; // Vue构造函数，此时还未被实例化
+
+      var Sub = function VueComponent(options) {
+        this._init(options);
+      };
+
+      Sub.cid = cid++; // 防止组件是同一个构造函数产生的，因为不同组件可能命名却是一样，会导致createComponent中出问题
+
+      Sub.prototype = Object.create(Super.prototype); // 都是通过Vue来继承的
+
+      Sub.prototype.constructor = Sub; // 常规操作，原型变更，将实例所指向的原函数也改掉，这样静态属性也会被同步过来
+      // 注意这一步不是在替换$options.component，而是在将Vue.component方法进行统一，都是使用的上面那个Vue.component = function (id, definition)函数
+
+      Sub.component = Super.component; // ...省略其余操作代码
+
+      Sub.options = mergeOptions(Super.options, options); // 将全局组件与该实例化的组件options合并（注意之前的实现，只会合并属性与生命周期）
+
+      return Sub; // 这个构造函数是由对象（options）产生而来的
     };
   }
 
