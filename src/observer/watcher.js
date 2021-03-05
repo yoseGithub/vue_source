@@ -33,7 +33,6 @@ class Watcher {
     }
     // 真正触发更新
     run () {
-        console.log('触发视图更新')
         this.get()
     }
     update () { // 多次更改，合并成一次（防抖）

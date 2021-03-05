@@ -47,3 +47,8 @@ function vnode (vm, tag, data, key, children, text, componentOptions) {
         componentOptions
     }
 }
+
+// 是否为相同虚拟节点
+export function isSameVnode (oldVnode, newVnode) {
+    return (oldVnode.tag === newVnode.tag) && (oldVnode.key === newVnode.key)
+}

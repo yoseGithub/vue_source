@@ -6,9 +6,16 @@ export function lifecycleMixin (Vue) {
     Vue.prototype._update = function (vnode) {
         const vm = this
 
-        // 首次渲染，需要用虚拟节点，来更新真实的dom元素
-        // 第一次渲染完毕后 拿到新的节点，下次再次渲染时替换上次渲染的结果
-        vm.$el = patch(vm.$el, vnode) // 组件调用patch方法后会产生$el属性
+        const preVnode = vm._vnode // 初始化时必然为undefind
+        vm._vnode = vnode
+
+        if (!preVnode) { // 初渲染
+            // 首次渲染，需要用虚拟节点，来更新真实的dom元素（vm._render()）
+            // 第一次渲染完毕后 拿到新的节点，下次再次渲染时替换上次渲染的结果
+            vm.$el = patch(vm.$el, vnode) // 组件调用patch方法后会产生$el属性
+        } else { // 视图更新渲染
+            vm.$el = patch(preVnode, vnode)
+        }
     }
 }
 
