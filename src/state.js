@@ -1,4 +1,6 @@
 import { observe } from './observer/index'
+import Watcher from './observer/watcher'
+import { nextTick } from './util'
 
 // 初始化状态
 export function initState (vm) {
@@ -14,6 +16,11 @@ export function initState (vm) {
 
     if (opts.methods) {
         // 数据的初始化
+    }
+
+    
+    if (opts.watch) {
+        initWatch(vm)
     }
 }
 
@@ -45,4 +52,45 @@ function initData (vm) {
 
     // 观测数据
     observe(data)
+}
+
+function initWatch (vm) {
+    let watch = vm.$options.watch
+    for (let key in watch) {
+        const handler = watch[key]
+
+        if (Array.isArray(handler)) {
+            handler.forEach(handle => {
+                createWatcher(vm, key, handler)
+            })
+        } else {
+            createWatcher(vm, key, handler) // 字符串、对象、函数
+        }
+    }
+}
+
+function createWatcher (vm, exprOrFn, handler, options) { // options 可以用来标识是用户watcher
+    if (typeof handler === 'object' && typeof handler !== 'null') {
+        options = handler
+        handler = handler.handler // 是一个函数
+    }
+
+    if (typeof handler === 'string') {
+        handler = vm[handler] // 将实例的方法作为handler
+    }
+
+    return vm.$watch(exprOrFn, handler, options)
+}
+
+export function stateMixin (Vue) {
+    Vue.prototype.$nextTick = function (cb) {
+        nextTick(cb)
+    }
+    Vue.prototype.$watch = function (exprOrFn, cb, options) {
+        // 数据应该迎来这个watcher，数据变化后应该让watcher从新执行
+        let watcher = new Watcher(this, exprOrFn, cb, {...options, user: true}) // user: true 用于标识是用户写的侦听器，非渲染watcher
+        if (options.immediate) {
+            cb() // 如果是immediate，则立即执行
+        }
+    }
 }

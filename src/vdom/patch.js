@@ -19,6 +19,7 @@ export function patch(oldVnode, vnode) {
         parentElm.insertBefore(el, oldElm.nextSibling)
         parentElm.removeChild(oldElm)
         return el // vm.$el
+        
     } else {
         // 1. 如果两个虚拟节点的标签不一致，就直接替换掉
         if (oldVnode.tag !== vnode.tag) {
@@ -28,7 +29,7 @@ export function patch(oldVnode, vnode) {
         // 2. 标签一样，但是是两个文本元素（tag: undefined）
         if (!oldVnode.tag) {
             if (oldVnode.text !== vnode.text) {
-                return oldVnode.el.textContent = vnode.text
+                oldVnode.el.textContent = vnode.text
             }
         }
 
@@ -101,11 +102,11 @@ function updateChildren (parent, oldChildren, newChildren) {
             // 1. 需要先查找当前索引 老节点索引和key的关系
             // 移动的时候通过新的 key 去找对应的老节点索引 => 获取老节点，可以移动老节点
             let moveIndex = map[newStartVnode.key]
-            if (moveIndex === undefined) { // 不在字典中存在，是个新节点，直接插入
+            if (moveIndex === null) { // 不在字典中存在，是个新节点，直接插入
                 parent.insertBefore(createElm(newStartVnode), oldStartVnode.el)
             } else {
                 let moveVnode = oldChildren[moveIndex]
-                oldChildren[moveIndex] = undefined // 表示该虚拟节点已经处理过，后续递归时可直接跳过
+                oldChildren[moveIndex] = null // 表示该虚拟节点已经处理过，后续递归时可直接跳过
                 patch(moveVnode, newStartVnode) // 如果找到了，需要两个虚拟节点对比
                 parent.insertBefore(moveVnode.el, oldStartVnode.el)
             }
@@ -118,7 +119,7 @@ function updateChildren (parent, oldChildren, newChildren) {
         // 将多出来的节点一个个插入进去
         for (let i = newStartIndex; i <= newEndIndex; i++) {
             // 排查下一个节点是否存在，如果存在证明指针是从后往前（insertBefore），反之指针是从头往后（appendChild）
-            let nextEle = newChildren[newEndIndex + 1] === undefined ? null : newChildren[newEndIndex + 1].el
+            let nextEle = newChildren[newEndIndex + 1] === null ? null : newChildren[newEndIndex + 1].el
             // 这里不需要分情况使用 appendChild 或 insertBefore
             // 如果 insertBefore 传入 null，等价于 appendChild
             parent.insertBefore(createElm(newChildren[i]), nextEle)
@@ -129,7 +130,7 @@ function updateChildren (parent, oldChildren, newChildren) {
     if (oldStartIndex <= oldEndIndex) {
         for (let i = oldStartIndex; i <= oldEndIndex; i++) {
             let child = oldChildren[i]
-            if (child !== undefined) { // 有可能是遍历到已经被使用过的虚拟节点，需要排除掉
+            if (child !== null) { // 有可能是遍历到已经被使用过的虚拟节点，需要排除掉
                 parent.removeChild(child.el)
             }
         }

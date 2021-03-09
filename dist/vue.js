@@ -1,6 +1,6 @@
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
-  typeof define === 'function' && define.amd ? define(factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory(require('_rollup@2.38.4@rollup')) :
+  typeof define === 'function' && define.amd ? define(['_rollup@2.38.4@rollup'], factory) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, global.Vue = factory());
 }(this, (function () { 'use strict';
 
@@ -335,6 +335,299 @@
     return new Observer(data);
   }
 
+  // 因为工具方法不多，所以没像源码那样再建一个文件夹，源码：src\core\util，具体看next-tick.js ，这里只说实现原理，不会写那么多兼容
+  var callbacks = []; // 由于批处理的时候会执行nextTick，用户也可能会去调用nextTick，会导致重复执行，因此需要将所有调用nextTick的逻辑都先锁上，等到全部处理完再放开
+
+  var waiting = false;
+  var isObject = function isObject(val) {
+    return _typeof(val) === 'object' && val !== null;
+  };
+
+  function flushCallbacks() {
+    for (var i = 0; i < callbacks.length; i++) {
+      var callback = callbacks[i];
+      callback();
+    }
+
+    waiting = false;
+    callbacks = [];
+  } // 批量处理，第一次开定时器，后续只更新列表，之后执行清空逻辑
+  // 第一次cb是渲染watcher更新操作（渲染watcher执行的过程是同步的）
+  // 第二次cb是用户传入的回调
+
+
+  function nextTick(cb) {
+    callbacks.push(cb); // 1. Promise
+    // 2. mutationObserver
+    // 3. setImmdiate
+    // 4. setTimeout
+    // 由于 vue3 已不再考虑兼容性，里面直接用的 Promise，所以这里就不重现了，有兴趣自行看源码
+
+    if (!waiting) {
+      waiting = true;
+      Promise.resolve().then(flushCallbacks); // 多次调用nextTick，只会开启一次Promise
+    }
+  } // 没全写，主要是实现合并原理
+
+  var LIFECYCLE_HOOKS = ['beforeCreate', 'created', 'beforeMount', 'mounted'];
+  var strats = {};
+  LIFECYCLE_HOOKS.forEach(function (hook) {
+    strats[hook] = mergeHook;
+  }); // 组件合并策略
+
+  strats.components = function (parentVal, childVal) {
+    var res = Object.create(parentVal);
+
+    if (childVal) {
+      for (var key in childVal) {
+        res[key] = childVal[key];
+      }
+    }
+
+    return res;
+  }; // 钩子合并策略，数组形式
+  // 由于调用时最开始传入的options为{}，所以在策略中要么没有，如果有则第一次parentVal为undefined，childVal有值
+
+
+  function mergeHook(parentVal, childVal) {
+    if (childVal) {
+      if (parentVal) {
+        // 如果儿子有父亲也有
+        return parentVal.concat(childVal);
+      } else {
+        // 如果儿子有父亲没有
+        return [childVal];
+      }
+    } else {
+      return parentVal; // 儿子没有直接采用父亲
+    }
+  } // 合并策略，属性采用对象合并（Object.assgin规则），生命周期则包装成数组，后面依次执行
+
+
+  function mergeOptions(parent, child) {
+    var options = {}; // 如果父亲有儿子也有，应该用儿子替换父亲；如果父亲有值儿子没有，用父亲的
+    // {a: 1} {a: 2} => {a: 2}
+    // {a: 1} {b: 2} => {a:1, b: 2}
+    // 使用for，主要考虑到深拷贝
+
+    for (var key in parent) {
+      mergeField(key);
+    }
+
+    for (var _key in child) {
+      if (!parent.hasOwnProperty(_key)) {
+        mergeField(_key);
+      }
+    } // vue这种做法，老是在函数中写函数我也是醉了…
+
+
+    function mergeField(key) {
+      // 策略模式，生命周期合并处理
+      if (strats[key]) {
+        return options[key] = strats[key](parent[key], child[key]); // 这里相当于调用mergeHook，因为没完全实现（比如components等那些合并策略并没有实现）
+      } // data属性的合并处理
+
+
+      if (isObject(parent[key]) && isObject(child[key])) {
+        options[key] = _objectSpread2(_objectSpread2({}, parent[key]), child[key]);
+      } else {
+        if (child[key]) {
+          // 如果儿子有值
+          options[key] = child[key];
+        } else {
+          options[key] = parent[key];
+        }
+      }
+    }
+
+    return options;
+  }
+
+  function makeUp(str) {
+    var map = {};
+    str.split(',').forEach(function (tagName) {
+      map[tagName] = true;
+    });
+    return function (tag) {
+      return map[tag] || false;
+    };
+  } // 标签太多，随便写几个，源码里太多了。高阶函数，比起直接使用数组的include判断，用字典空间复杂度为O(1)
+
+
+  var isReservedTag = makeUp('a,p,div,ul,li,span,input,button');
+
+  // 调度文件
+
+  var has = {};
+  var queue = [];
+  var pending = false;
+
+  function flushSchedularQueue() {
+    for (var i = 0; i < queue.length; i++) {
+      var watcher = queue[i];
+      watcher.run();
+
+      if (!watcher.user) {
+        watcher.cb();
+      }
+    } // watcherIds.clear()
+
+
+    has = {};
+    queue = [];
+    pending = false;
+  } // 调度更新，同一个watcher只会触发一次 watcher.run()
+
+
+  function queueWatcher(watcher) {
+    // 更新时对watcher进行去重操作
+    var id = watcher.id; // if (!watcherIds.has(id))
+
+    if (has[id] == null) {
+      queue.push(watcher); // watcherIds.add(id)
+
+      has[id] = true; // 让queue清空，加锁pending，不同 watcher 只触发一次nextTick更新
+
+      if (!pending) {
+        pending = true;
+        nextTick(flushSchedularQueue);
+      }
+    }
+  }
+
+  var id$1 = 0;
+
+  var Watcher = /*#__PURE__*/function () {
+    function Watcher(vm, exprOrFn, cb) {
+      var options = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : {};
+
+      _classCallCheck(this, Watcher);
+
+      this.vm = vm;
+      this.cb = cb;
+      this.id = id$1++; // 不同组件id都不一样
+
+      this.options = options;
+      this.user = options.user; // 用户watcher
+
+      this.getter = exprOrFn; // 调用传入的函数
+
+      this.deps = []; // watcher 里也要记住dep
+
+      this.depsId = new Set();
+
+      if (typeof exprOrFn === 'function') {
+        this.getter = exprOrFn;
+      } else {
+        this.getter = function () {
+          // exprOrFn传递过来的可能是字符串，也可能是函数
+          // 当去当前实例上取值时，才会触发依赖收集
+          var path = exprOrFn.split('.');
+          var obj = vm;
+
+          for (var i = 0; i < path.length; i++) {
+            obj = obj[path[i]];
+          }
+
+          return obj;
+        };
+      } // 默认会先调用一次get方法，进行取值，将结果保存下来
+
+
+      this.value = this.get();
+    } // 这个方法中会对属性进行取值操作
+
+
+    _createClass(Watcher, [{
+      key: "get",
+      value: function get() {
+        pushTarget(this); // Dep.target = watcher
+
+        var result = this.getter(); // 取值
+
+        popTarget();
+        return result;
+      } // 当属性取值时，需要记住这个watcher，稍后数据变化了，去执行自己记住的watcher即可
+
+    }, {
+      key: "addDep",
+      value: function addDep(dep) {
+        var id = dep.id;
+
+        if (!this.depsId.has(id)) {
+          // dep是非重复的
+          this.depsId.add(id);
+          this.deps.push(dep);
+          dep.addSub(this);
+        }
+      } // 真正触发更新
+
+    }, {
+      key: "run",
+      value: function run() {
+        var newValue = this.get();
+        var oldValue = this.value;
+        this.value = newValue; // 将老值更改掉
+
+        if (this.user) {
+          this.cb.call(this.vm, newValue, oldValue);
+        }
+      }
+    }, {
+      key: "update",
+      value: function update() {
+        // 多次更改，合并成一次（防抖）
+        queueWatcher(this);
+      }
+    }]);
+
+    return Watcher;
+  }();
+
+  // 因为工具方法不多，所以没像源码那样再建一个文件夹，源码：src\core\util，具体看next-tick.js ，这里只说实现原理，不会写那么多兼容
+  var callbacks$1 = []; // 由于批处理的时候会执行nextTick，用户也可能会去调用nextTick，会导致重复执行，因此需要将所有调用nextTick的逻辑都先锁上，等到全部处理完再放开
+
+  var waiting$1 = false;
+
+  function flushCallbacks$1() {
+    for (var i = 0; i < callbacks$1.length; i++) {
+      var callback = callbacks$1[i];
+      callback();
+    }
+
+    waiting$1 = false;
+    callbacks$1 = [];
+  } // 批量处理，第一次开定时器，后续只更新列表，之后执行清空逻辑
+  // 第一次cb是渲染watcher更新操作（渲染watcher执行的过程是同步的）
+  // 第二次cb是用户传入的回调
+
+
+  function nextTick$1(cb) {
+    callbacks$1.push(cb); // 1. Promise
+    // 2. mutationObserver
+    // 3. setImmdiate
+    // 4. setTimeout
+    // 由于 vue3 已不再考虑兼容性，里面直接用的 Promise，所以这里就不重现了，有兴趣自行看源码
+
+    if (!waiting$1) {
+      waiting$1 = true;
+      Promise.resolve().then(flushCallbacks$1); // 多次调用nextTick，只会开启一次Promise
+    }
+  } // 没全写，主要是实现合并原理
+
+  function makeUp$1(str) {
+    var map = {};
+    str.split(',').forEach(function (tagName) {
+      map[tagName] = true;
+    });
+    return function (tag) {
+      return map[tag] || false;
+    };
+  } // 标签太多，随便写几个，源码里太多了。高阶函数，比起直接使用数组的include判断，用字典空间复杂度为O(1)
+
+
+  makeUp$1('a,p,div,ul,li,span,input,button');
+
   function initState(vm) {
     // 将所有数据都定义在 vm 属性上，并且后续更改需要触发视图更新
     var opts = vm.$options; // 获取用户属性
@@ -346,6 +639,10 @@
     }
 
     if (opts.methods) ;
+
+    if (opts.watch) {
+      initWatch(vm);
+    }
   } // 数据代理
 
   function Proxy(vm, source, key) {
@@ -374,6 +671,57 @@
 
 
     observe(data);
+  }
+
+  function initWatch(vm) {
+    var watch = vm.$options.watch;
+
+    var _loop = function _loop(key) {
+      var handler = watch[key];
+
+      if (Array.isArray(handler)) {
+        handler.forEach(function (handle) {
+          createWatcher(vm, key, handler);
+        });
+      } else {
+        createWatcher(vm, key, handler); // 字符串、对象、函数
+      }
+    };
+
+    for (var key in watch) {
+      _loop(key);
+    }
+  }
+
+  function createWatcher(vm, exprOrFn, handler, options) {
+    // options 可以用来标识是用户watcher
+    if (_typeof(handler) === 'object' && typeof handler !== 'null') {
+      options = handler;
+      handler = handler.handler; // 是一个函数
+    }
+
+    if (typeof handler === 'string') {
+      handler = vm[handler]; // 将实例的方法作为handler
+    }
+
+    return vm.$watch(exprOrFn, handler, options);
+  }
+
+  function stateMixin(Vue) {
+    Vue.prototype.$nextTick = function (cb) {
+      nextTick$1(cb);
+    };
+
+    Vue.prototype.$watch = function (exprOrFn, cb, options) {
+      // 数据应该迎来这个watcher，数据变化后应该让watcher从新执行
+      new Watcher(this, exprOrFn, cb, _objectSpread2(_objectSpread2({}, options), {}, {
+        user: true
+      })); // user: true 用于标识是用户写的侦听器，非渲染watcher
+
+      if (options.immediate) {
+        cb(); // 如果是immediate，则立即执行
+      }
+    };
   }
 
   // 生成AST语法树
@@ -622,221 +970,6 @@
     return fn;
   }
 
-  // 因为工具方法不多，所以没像源码那样再建一个文件夹，源码：src\core\util，具体看next-tick.js ，这里只说实现原理，不会写那么多兼容
-  var callbacks = []; // 由于批处理的时候会执行nextTick，用户也可能会去调用nextTick，会导致重复执行，因此需要将所有调用nextTick的逻辑都先锁上，等到全部处理完再放开
-
-  var waiting = false;
-  var isObject = function isObject(val) {
-    return _typeof(val) === 'object' && val !== null;
-  };
-
-  function flushCallbacks() {
-    for (var i = 0; i < callbacks.length; i++) {
-      var callback = callbacks[i];
-      callback();
-    }
-
-    waiting = false;
-    callbacks = [];
-  } // 批量处理，第一次开定时器，后续只更新列表，之后执行清空逻辑
-  // 第一次cb是渲染watcher更新操作（渲染watcher执行的过程是同步的）
-  // 第二次cb是用户传入的回调
-
-
-  function nextTick(cb) {
-    callbacks.push(cb); // 1. Promise
-    // 2. mutationObserver
-    // 3. setImmdiate
-    // 4. setTimeout
-    // 由于 vue3 已不再考虑兼容性，里面直接用的 Promise，所以这里就不重现了，有兴趣自行看源码
-
-    if (!waiting) {
-      waiting = true;
-      Promise.resolve().then(flushCallbacks); // 多次调用nextTick，只会开启一次Promise
-    }
-  } // 没全写，主要是实现合并原理
-
-  var LIFECYCLE_HOOKS = ['beforeCreate', 'created', 'beforeMount', 'mounted'];
-  var strats = {};
-  LIFECYCLE_HOOKS.forEach(function (hook) {
-    strats[hook] = mergeHook;
-  }); // 组件合并策略
-
-  strats.components = function (parentVal, childVal) {
-    var res = Object.create(parentVal);
-
-    if (childVal) {
-      for (var key in childVal) {
-        res[key] = childVal[key];
-      }
-    }
-
-    return res;
-  }; // 钩子合并策略，数组形式
-  // 由于调用时最开始传入的options为{}，所以在策略中要么没有，如果有则第一次parentVal为undefined，childVal有值
-
-
-  function mergeHook(parentVal, childVal) {
-    if (childVal) {
-      if (parentVal) {
-        // 如果儿子有父亲也有
-        return parentVal.concat(childVal);
-      } else {
-        // 如果儿子有父亲没有
-        return [childVal];
-      }
-    } else {
-      return parentVal; // 儿子没有直接采用父亲
-    }
-  } // 合并策略，属性采用对象合并（Object.assgin规则），生命周期则包装成数组，后面依次执行
-
-
-  function mergeOptions(parent, child) {
-    var options = {}; // 如果父亲有儿子也有，应该用儿子替换父亲；如果父亲有值儿子没有，用父亲的
-    // {a: 1} {a: 2} => {a: 2}
-    // {a: 1} {b: 2} => {a:1, b: 2}
-    // 使用for，主要考虑到深拷贝
-
-    for (var key in parent) {
-      mergeField(key);
-    }
-
-    for (var _key in child) {
-      if (!parent.hasOwnProperty(_key)) {
-        mergeField(_key);
-      }
-    } // vue这种做法，老是在函数中写函数我也是醉了…
-
-
-    function mergeField(key) {
-      // 策略模式，生命周期合并处理
-      if (strats[key]) {
-        return options[key] = strats[key](parent[key], child[key]); // 这里相当于调用mergeHook，因为没完全实现（比如components等那些合并策略并没有实现）
-      } // data属性的合并处理
-
-
-      if (isObject(parent[key]) && isObject(child[key])) {
-        options[key] = _objectSpread2(_objectSpread2({}, parent[key]), child[key]);
-      } else {
-        if (child[key]) {
-          // 如果儿子有值
-          options[key] = child[key];
-        } else {
-          options[key] = parent[key];
-        }
-      }
-    }
-
-    return options;
-  }
-
-  function makeUp(str) {
-    var map = {};
-    str.split(',').forEach(function (tagName) {
-      map[tagName] = true;
-    });
-    return function (tag) {
-      return map[tag] || false;
-    };
-  } // 标签太多，随便写几个，源码里太多了。高阶函数，比起直接使用数组的include判断，用字典空间复杂度为O(1)
-
-
-  var isReservedTag = makeUp('a,p,div,ul,li,span,input,button');
-
-  // 调度文件
-
-  var has = {};
-  var queue = [];
-  var pending = false;
-
-  function flushSchedularQueue() {
-    for (var i = 0; i < queue.length; i++) {
-      var watcher = queue[i];
-      watcher.run();
-    } // watcherIds.clear()
-
-
-    has = {};
-    queue = [];
-    pending = false;
-  } // 调度更新，同一个watcher只会触发一次 watcher.run()
-
-
-  function queueWatcher(watcher) {
-    // 更新时对watcher进行去重操作
-    var id = watcher.id; // if (!watcherIds.has(id))
-
-    if (has[id] == null) {
-      queue.push(watcher); // watcherIds.add(id)
-
-      has[id] = true; // 让queue清空，加锁pending，不同 watcher 只触发一次nextTick更新
-
-      if (!pending) {
-        pending = true;
-        nextTick(flushSchedularQueue);
-      }
-    }
-  }
-
-  var id$1 = 0;
-
-  var Watcher = /*#__PURE__*/function () {
-    function Watcher(vm, exprOrFn, cb, options) {
-      _classCallCheck(this, Watcher);
-
-      this.vm = vm;
-      this.cb = cb;
-      this.id = id$1++; // 不同组件id都不一样
-
-      this.options = options;
-      this.getter = exprOrFn; // 调用传入的函数
-
-      this.deps = []; // watcher 里也要记住dep
-
-      this.depsId = new Set();
-      this.get();
-    } // 这个方法中会对属性进行取值操作
-
-
-    _createClass(Watcher, [{
-      key: "get",
-      value: function get() {
-        pushTarget(this); // Dep.target = watcher
-
-        this.getter(); // 取值
-
-        popTarget();
-      } // 当属性取值时，需要记住这个watcher，稍后数据变化了，去执行自己记住的watcher即可
-
-    }, {
-      key: "addDep",
-      value: function addDep(dep) {
-        var id = dep.id;
-
-        if (!this.depsId.has(id)) {
-          // dep是非重复的
-          this.depsId.add(id);
-          this.deps.push(dep);
-          dep.addSub(this);
-        }
-      } // 真正触发更新
-
-    }, {
-      key: "run",
-      value: function run() {
-        this.get();
-      }
-    }, {
-      key: "update",
-      value: function update() {
-        // 多次更改，合并成一次（防抖）
-        queueWatcher(this);
-      }
-    }]);
-
-    return Watcher;
-  }();
-
   function createdElement(vm, tag) {
     var data = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
 
@@ -928,7 +1061,7 @@
 
       if (!oldVnode.tag) {
         if (oldVnode.text !== vnode.text) {
-          return oldVnode.el.textContent = vnode.text;
+          oldVnode.el.textContent = vnode.text;
         }
       } // 3. 元素相同，属性不同，复用老节点并且更新属性
 
@@ -1020,12 +1153,12 @@
         // 移动的时候通过新的 key 去找对应的老节点索引 => 获取老节点，可以移动老节点
         var moveIndex = map[newStartVnode.key];
 
-        if (moveIndex === undefined) {
+        if (moveIndex === null) {
           // 不在字典中存在，是个新节点，直接插入
           parent.insertBefore(createElm(newStartVnode), oldStartVnode.el);
         } else {
           var moveVnode = oldChildren[moveIndex];
-          oldChildren[moveIndex] = undefined; // 表示该虚拟节点已经处理过，后续递归时可直接跳过
+          oldChildren[moveIndex] = null; // 表示该虚拟节点已经处理过，后续递归时可直接跳过
 
           patch(moveVnode, newStartVnode); // 如果找到了，需要两个虚拟节点对比
 
@@ -1041,7 +1174,7 @@
       // 将多出来的节点一个个插入进去
       for (var i = newStartIndex; i <= newEndIndex; i++) {
         // 排查下一个节点是否存在，如果存在证明指针是从后往前（insertBefore），反之指针是从头往后（appendChild）
-        var nextEle = newChildren[newEndIndex + 1] === undefined ? null : newChildren[newEndIndex + 1].el; // 这里不需要分情况使用 appendChild 或 insertBefore
+        var nextEle = newChildren[newEndIndex + 1] === null ? null : newChildren[newEndIndex + 1].el; // 这里不需要分情况使用 appendChild 或 insertBefore
         // 如果 insertBefore 传入 null，等价于 appendChild
 
         parent.insertBefore(createElm(newChildren[i]), nextEle);
@@ -1053,7 +1186,7 @@
       for (var _i = oldStartIndex; _i <= oldEndIndex; _i++) {
         var child = oldChildren[_i];
 
-        if (child !== undefined) {
+        if (child !== null) {
           // 有可能是遍历到已经被使用过的虚拟节点，需要排除掉
           parent.removeChild(child.el);
         }
@@ -1199,7 +1332,7 @@
       }
     };
 
-    Vue.prototype.$nextTick = nextTick;
+    stateMixin(Vue); // Vue.prototype.$nextTick = nextTick
 
     Vue.prototype.$mount = function (el) {
       el = el && document.querySelector(el); // 自定义组件没有el，但需要挂载

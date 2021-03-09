@@ -1,5 +1,6 @@
 // 调度文件
 import { nextTick } from "@/util.js"
+import { watch } from "_rollup@2.38.4@rollup"
 
 // let watcherIds = new Set() // 源码用的对象，不知道为什么前面 depsId 用 set ，这里去重却用了对象 has
 let has = {}
@@ -10,6 +11,10 @@ function flushSchedularQueue () {
     for (let i = 0; i < queue.length; i++) {
         let watcher = queue[i]
         watcher.run()
+
+        if (!watcher.user) {
+            watcher.cb()
+        }
     }
     // watcherIds.clear()
     has = {}

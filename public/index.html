@@ -4,12 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+    <style>
+        body {
+            background-color: rgba(36, 36, 36, 1);
+        }
+    </style>
 </head>
 <body>
     <div id="app" class="wrap" style="background-color: pink">
-        <my-button></my-button>
-        <my-button></my-button>
-        <my-button></my-button>
+        <div>{{name}}</div>
     </div>
 
     <script src="/dist/vue.js"></script>
@@ -20,11 +23,11 @@
 
         const vm = new Vue({ // options api
             el: '#app',
-            components: {
-                'my-button': {
-                    template: '<button>内部按钮</button>'
-                }
-            },
+            // components: {
+            //     'my-button': {
+            //         template: '<button>内部按钮</button>'
+            //     }
+            // },
             data () {
                 return {
                     name: 'yose',
@@ -32,13 +35,25 @@
                     arr: []
                 }
             },
-            beforeCreate () {
-                console.log('before-create')
-            },
-            created () {
-                console.log('created')
+            watch: {
+                name: {
+                    handler () {
+                        console.log('ok')
+                    }
+                }
             }
+            // beforeCreate () {
+            //     console.log('before-create')
+            // },
+            // created () {
+            //     console.log('created')
+            // }
         })
+
+        vm.name = 'aaa'
+        setTimeout(() => {
+            vm.name = 'aa'
+        }, 1000)
     </script>
 </body>
 </html>

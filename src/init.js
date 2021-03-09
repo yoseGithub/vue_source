@@ -1,4 +1,4 @@
-import { initState } from './state'
+import { initState, stateMixin } from './state'
 import { compileToFunctions } from './compiler/index.js'
 import { mountComponent, callHook } from './lifecycle.js'
 import { mergeOptions, nextTick } from '@/util'
@@ -21,7 +21,8 @@ export function initMixin (Vue) {
         }
     }
 
-    Vue.prototype.$nextTick = nextTick
+    stateMixin(Vue)
+    // Vue.prototype.$nextTick = nextTick
 
     Vue.prototype.$mount = function (el) {
         el = el && document.querySelector(el) // 自定义组件没有el，但需要挂载
