@@ -12,7 +12,7 @@
 </head>
 <body>
     <div id="app" class="wrap" style="background-color: pink">
-        <div>{{name}}</div>
+        <div>{{fullName}}</div>
     </div>
 
     <script src="/dist/vue.js"></script>
@@ -31,17 +31,24 @@
             data () {
                 return {
                     name: 'yose',
+                    firstName: '郑',
+                    lastName: '羽晞',
                     age: 18,
                     arr: []
                 }
             },
-            watch: {
-                name: {
-                    handler () {
-                        console.log('ok')
-                    }
+            computed: {
+                fullName () {
+                    return this.firstName + this.lastName
                 }
-            }
+            },
+            // watch: {
+            //     name: {
+            //         handler () {
+            //             console.log('ok')
+            //         }
+            //     }
+            // }
             // beforeCreate () {
             //     console.log('before-create')
             // },
@@ -50,9 +57,8 @@
             // }
         })
 
-        vm.name = 'aaa'
         setTimeout(() => {
-            vm.name = 'aa'
+            vm.firstName = '黄'
         }, 1000)
     </script>
 </body>

@@ -11,6 +11,8 @@ class Watcher {
         this.id = id++ // 不同组件id都不一样
         this.options = options
         this.user = options.user // 用户watcher
+        this.lazy = options.lazy // 如果watcher上有lazy属性，说明是一个计算属性
+        this.dirty = this.lazy // dirty代表取值时是否执行用户提供的方法，可变
         this.getter = exprOrFn // 调用传入的函数
         this.deps = [] // watcher 里也要记住dep
         this.depsId = new Set()
@@ -30,12 +32,15 @@ class Watcher {
         }
 
         // 默认会先调用一次get方法，进行取值，将结果保存下来
-        this.value = this.get()
+        // 如果是计算属性，则什么都不做（计算属性默认不执行）
+        this.value = this.lazy ? void 0 : this.get()
     }
     // 这个方法中会对属性进行取值操作
     get () {
         pushTarget(this) // Dep.target = watcher
-        let result = this.getter() // 取值
+        // data属性取值，触发updateComponent，其中this指向的时vm
+        // computed属性取值，会执行绑定的函数，该函数中的this指向的是该watcher，所以this指向会有问题，需要call(this.vm)
+        let result = this.getter.call(this.vm)
         popTarget()
 
         return result
@@ -59,7 +64,24 @@ class Watcher {
         }
     }
     update () { // 多次更改，合并成一次（防抖）
-        queueWatcher(this)
+        if (this.lazy) {
+            this.dirty = true
+        } else {
+            // 这里不要每次都调用get方法，get会重新渲染页面
+            queueWatcher(this)
+        }
+    }
+    evaluate () {
+        this.value = this.get()
+        this.dirty = false // 取过值后标识，标识已经取过值了
+    }
+    depend () {
+        // 计算属性watcher会存储dep，dep会存储watcher
+        // 通过watcher找到对应的所有dep，让所有的dep都记住这个渲染watcher
+        let i = this.deps.length
+        while (i--) {
+            this.deps[i].depend()
+        }
     }
 }
 

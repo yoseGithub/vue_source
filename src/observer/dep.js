@@ -16,16 +16,22 @@ class Dep {
         this.subs.push(watcher)
     }
     notify () {
-        this.subs.forEach(watcher => watcher.update())
+        this.subs.forEach(watcher => {
+            watcher.update()
+        })
     }
 }
 
+let stack = []
+
 export function pushTarget (watcher) {
     Dep.target = watcher
+    stack.push(watcher) // stack有渲染watcher，也有其他watcher
 }
 
 export function popTarget () {
-    Dep.target = null
+    stack.pop() // 栈型结构，第一个为渲染watcher，后面的为其他watcher，watcher使用过就出栈
+    Dep.target = stack[stack.length - 1]
 }
 
 export default Dep

@@ -1,3 +1,4 @@
+import Dep from './observer/dep'
 import { observe } from './observer/index'
 import Watcher from './observer/watcher'
 import { nextTick } from './util'
@@ -18,6 +19,9 @@ export function initState (vm) {
         // 数据的初始化
     }
 
+    if (opts.computed) {
+        initComputed(vm)
+    }
     
     if (opts.watch) {
         initWatch(vm)
@@ -54,6 +58,7 @@ function initData (vm) {
     observe(data)
 }
 
+// 初始化watcher
 function initWatch (vm) {
     let watch = vm.$options.watch
     for (let key in watch) {
@@ -91,6 +96,57 @@ export function stateMixin (Vue) {
         let watcher = new Watcher(this, exprOrFn, cb, {...options, user: true}) // user: true 用于标识是用户写的侦听器，非渲染watcher
         if (options.immediate) {
             cb() // 如果是immediate，则立即执行
+        }
+    }
+}
+
+// 初始化计算属性
+function initComputed (vm) {
+    let computed = vm.$options.computed
+    // 1. 需要有watcher 2. 需要通过defineProperty 3. dirty
+    const watchers = vm._computedWatchers = {} // 用来存放计算属性的watcher
+
+    for (let key in computed) {
+        const userDef = computed[key]
+        const getter = typeof userDef === 'function' ? userDef : userDef.get
+
+        watchers[key] = new Watcher(vm, getter, () => {}, {lazy: true})
+        defineComputed(vm, key, userDef)
+    }
+}
+
+function defineComputed (target, key, userDef) {
+    const sharedPropertyDefinition = {
+        enumerable: true,
+        configurable: true,
+        get: () => {},
+        set: () => {}
+    }
+
+    // 函数式
+    if (typeof userDef === 'function') {
+        sharedPropertyDefinition.get = createComputedGetter(key) // 通过dirty来控制是否调用userDef
+    } else {
+        sharedPropertyDefinition.get = createComputedGetter(key) // 需要加缓存
+        sharedPropertyDefinition.set = userDef.set
+    }
+
+    Object.defineProperty(target, key, sharedPropertyDefinition)
+}
+// 用户取值时调用该方法
+function createComputedGetter (key) {
+    return function () { // 高阶函数，每次取值调用该方法
+        const watcher = this._computedWatchers[key]
+        if (watcher) {
+            if (watcher.dirty) { // 判断是否需要执行用户传递的方法，默认肯定是脏的
+                watcher.evaluate() // 对当前watcher求值
+            }
+
+            if (Dep.target) {
+                watcher.depend()
+            }
+
+            return watcher.value // 默认返回watcher上存的值
         }
     }
 }
