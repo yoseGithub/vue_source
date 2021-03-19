@@ -12,6 +12,7 @@
     "@babel/plugin-syntax-class-properties": "^7.12.13",
     "@babel/preset-env": "^7.12.13",
     "@rollup/plugin-babel": "^5.2.3",
+    "@vue/cli": "^4.5.11",
     "rollup": "^2.38.4",
     "rollup-plugin-alias": "^2.2.0",
     "rollup-plugin-serve": "^1.1.0"
