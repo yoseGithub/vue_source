@@ -2,7 +2,6 @@
 node_modules/
 npm-debug.log*
 **/*.log
-note/
 *.xmind
 
 # Editor directories and files
